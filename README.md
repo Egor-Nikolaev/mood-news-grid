@@ -10,7 +10,7 @@
 переписанный текст с оригиналом и, если факт потерян, чинит результат или откатывается
 на детерминированный безопасный режим.
 
-**Живое демо:** https://mood-news-grid-od3fkcmv9-magisterkropotkins-projects.vercel.app
+**Живое демо:** https://mood-news-grid-live.vercel.app
 
 ---
 
