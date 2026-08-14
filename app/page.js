@@ -2,25 +2,55 @@
 
 import { useEffect, useState, useCallback } from "react";
 
+// Настроения + акцентные цвета (спокойные, editorial, не кислота).
 const MOODS = [
-  { key: "neutral", label: "⚖️ Нейтрально" },
-  { key: "joyful", label: "😄 Радостно" },
-  { key: "sad", label: "😔 Грустно" },
-  { key: "ironic", label: "😏 Иронично" },
-  { key: "anxious", label: "😟 Тревожно" },
+  { key: "neutral", label: "Нейтрально", dot: "#8b8992", tint: "rgba(139,137,146,0.07)" },
+  { key: "joyful", label: "Радостно", dot: "#c98a2b", tint: "rgba(201,138,43,0.09)" },
+  { key: "sad", label: "Грустно", dot: "#4f6d8c", tint: "rgba(79,109,140,0.09)" },
+  { key: "ironic", label: "Иронично", dot: "#7c6ba8", tint: "rgba(124,107,168,0.09)" },
+  { key: "anxious", label: "Тревожно", dot: "#b5553f", tint: "rgba(181,85,63,0.09)" },
 ];
+const moodOf = (k) => MOODS.find((m) => m.key === k) || MOODS[0];
 
 function factCount(f) {
   if (!f) return 0;
   return (f.numbers?.length || 0) + (f.dates?.length || 0) + (f.names?.length || 0) + (f.quotes?.length || 0);
 }
 
+// --- иконки (inline SVG, stroke 1.6) ---
+const IconShield = (p) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...p}>
+    <path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6l7-3z" />
+    <path d="M9 12l2 2 4-4" />
+  </svg>
+);
+const IconRefresh = (p) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...p}>
+    <path d="M21 12a9 9 0 1 1-2.64-6.36" /><path d="M21 3v6h-6" />
+  </svg>
+);
+const IconClose = (p) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...p}>
+    <path d="M18 6 6 18M6 6l12 12" />
+  </svg>
+);
+const IconCheck = (p) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}>
+    <circle cx="12" cy="12" r="9" /><path d="m8.5 12 2.2 2.2L15.5 9.5" />
+  </svg>
+);
+const IconAlert = (p) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}>
+    <path d="M12 3 2 20h20L12 3z" /><path d="M12 9v5M12 17.5v.5" />
+  </svg>
+);
+
 export default function Home() {
   const [articles, setArticles] = useState([]);
   const [mood, setMood] = useState("neutral");
   const [loading, setLoading] = useState(true);
   const [ingesting, setIngesting] = useState(false);
-  const [selected, setSelected] = useState(null); // {article, data, loading}
+  const [selected, setSelected] = useState(null); // {article}
 
   const loadNews = useCallback(async () => {
     setLoading(true);
@@ -30,9 +60,7 @@ export default function Home() {
     setLoading(false);
   }, []);
 
-  useEffect(() => {
-    loadNews();
-  }, [loadNews]);
+  useEffect(() => { loadNews(); }, [loadNews]);
 
   async function ingest() {
     setIngesting(true);
@@ -41,122 +69,165 @@ export default function Home() {
     setIngesting(false);
   }
 
-  async function openArticle(article) {
-    setSelected({ article, data: null, loading: true });
-    const res = await fetch("/api/rewrite", {
+  return (
+    <div className="wrap">
+      <header className="masthead">
+        <p className="eyebrow">Настроение новостей</p>
+        <h1>Одни и те же факты — <em>пять настроений</em></h1>
+        <p className="lede">
+          Реальные новости из открытых источников можно прочитать в разном эмоциональном режиме.
+          Меняется только тон: имена, числа, даты и цитаты остаются неизменными и проверяются кодом.
+        </p>
+      </header>
+
+      <div className="toolbar">
+        <div className="moods" role="tablist" aria-label="Настроение">
+          {MOODS.map((m) => (
+            <button
+              key={m.key}
+              role="tab"
+              aria-selected={mood === m.key}
+              className={"mood-btn" + (mood === m.key ? " active" : "")}
+              style={{ "--dot": m.dot }}
+              onClick={() => setMood(m.key)}
+            >
+              <span className="mood-dot" />
+              {m.label}
+            </button>
+          ))}
+        </div>
+        <button className={"btn-ghost" + (ingesting ? " spinning" : "")} onClick={ingest} disabled={ingesting}>
+          <IconRefresh />
+          {ingesting ? "Обновляю…" : "Обновить"}
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="skeleton-grid">
+          {Array.from({ length: 6 }).map((_, i) => <div key={i} className="skel" />)}
+        </div>
+      ) : articles.length === 0 ? (
+        <div className="center">
+          Новостей пока нет. Нажмите «Обновить» или запустите <code>npm run ingest</code>.
+        </div>
+      ) : (
+        <div className="grid">
+          {articles.map((a) => {
+            const m = moodOf(mood);
+            return (
+              <button key={a.id} className="card" style={{ "--dot": m.dot }} onClick={() => setSelected(a)}>
+                <span className="kicker">{a.source}</span>
+                <h3>{a.title}</h3>
+                <p className="snippet">{a.summary}</p>
+                <div className="foot">
+                  <span className="chip"><IconShield /> {factCount(a.facts)} фактов под защитой</span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {selected && (
+        <Modal article={selected} initialMood={mood} onClose={() => setSelected(null)} />
+      )}
+    </div>
+  );
+}
+
+function Modal({ article, initialMood, onClose }) {
+  const [mood, setMood] = useState(initialMood);
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const m = moodOf(mood);
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    setData(null);
+    fetch("/api/rewrite", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      // шлём и id (для кэша), и сам текст (чтобы не зависеть от id на serverless)
       body: JSON.stringify({
         articleId: article.id,
         text: article.summary,
         source_url: article.source_url,
         mood,
       }),
-    });
-    const data = await res.json();
-    setSelected({ article, data, loading: false });
-  }
+    })
+      .then((r) => r.json())
+      .then((d) => { if (alive) { setData(d); setLoading(false); } });
+    return () => { alive = false; };
+  }, [mood, article]);
 
-  return (
-    <div className="wrap">
-      <header>
-        <h1>Mood News Grid</h1>
-        <p>
-          Реальные новости из открытых RSS-источников. Один и тот же факт можно прочитать в разном
-          настроении — но сами факты (имена, числа, даты, цитаты) остаются неизменными и проверяются кодом.
-        </p>
-      </header>
+  // закрытие по Esc
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
-      <div className="toolbar">
-        <div className="moods">
-          {MOODS.map((m) => (
-            <button
-              key={m.key}
-              className={"mood-btn" + (mood === m.key ? " active" : "")}
-              onClick={() => setMood(m.key)}
-            >
-              {m.label}
-            </button>
-          ))}
-        </div>
-        <button className="btn" onClick={ingest} disabled={ingesting}>
-          {ingesting ? "Обновляю…" : "↻ Обновить новости"}
-        </button>
-      </div>
-
-      {loading ? (
-        <div className="center">Загрузка…</div>
-      ) : articles.length === 0 ? (
-        <div className="center">
-          Новостей пока нет. Нажми «Обновить новости» или запусти <code>npm run ingest</code>.
-        </div>
-      ) : (
-        <div className="grid">
-          {articles.map((a) => (
-            <div key={a.id} className="card" onClick={() => openArticle(a)}>
-              <span className="src">{a.source}</span>
-              <h3>{a.title}</h3>
-              <p className="snippet">{a.summary.slice(0, 140)}…</p>
-              <div className="meta">
-                <span className="tag">{factCount(a.facts)} фактов под защитой</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {selected && (
-        <Modal
-          selected={selected}
-          mood={mood}
-          onClose={() => setSelected(null)}
-        />
-      )}
-    </div>
-  );
-}
-
-function Modal({ selected, mood, onClose }) {
-  const { article, data, loading } = selected;
-  const moodLabel = MOODS.find((m) => m.key === mood)?.label || mood;
+  const v = data?.verification;
 
   return (
     <div className="overlay" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <button className="close" onClick={onClose}>×</button>
-        <span className="src">{article.source}</span>
-        <h2>{article.title}</h2>
-        <div className="src-line">
-          Источник: <a href={article.source_url} target="_blank" rel="noreferrer">{article.source_url}</a>
+      <div className="modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+        <div className="modal-head">
+          <div>
+            <p className="kicker" style={{ "--dot": m.dot }}>{article.source}</p>
+            <h2>{article.title}</h2>
+            <p className="src-line">
+              Источник: <a href={article.source_url} target="_blank" rel="noreferrer">{article.source_url}</a>
+            </p>
+          </div>
+          <button className="close" onClick={onClose} aria-label="Закрыть"><IconClose /></button>
+        </div>
+
+        {/* переключение настроения прямо в карточке */}
+        <div className="moods" role="tablist" aria-label="Настроение" style={{ marginBottom: "var(--sp-4)" }}>
+          {MOODS.map((mm) => (
+            <button
+              key={mm.key}
+              role="tab"
+              aria-selected={mood === mm.key}
+              className={"mood-btn" + (mood === mm.key ? " active" : "")}
+              style={{ "--dot": mm.dot }}
+              onClick={() => setMood(mm.key)}
+            >
+              <span className="mood-dot" />
+              {mm.label}
+            </button>
+          ))}
         </div>
 
         <div className="compare">
           <div className="col">
-            <h4>Оригинал</h4>
+            <div className="col-label">Оригинал</div>
             <p>{article.summary}</p>
           </div>
-          <div className="col">
-            <h4>{moodLabel}</h4>
-            {loading ? <p className="spinner">Переписываю тон…</p> : <p>{data?.text}</p>}
+          <div className="col mood" style={{ "--dot": m.dot, "--mood-tint": m.tint }}>
+            <div className="col-label"><span className="mood-dot" style={{ "--dot": m.dot }} /> {m.label}</div>
+            {loading
+              ? <p className="thinking">Переписываю тон…</p>
+              : <p>{data?.text}</p>}
           </div>
         </div>
 
-        {!loading && data?.verification && (
-          <div className={"verify " + (data.verification.ok ? "ok" : "bad")}>
-            <span className="badge">
-              {data.verification.ok ? "✓ Факты сохранены" : "✗ Обнаружено искажение фактов"}
-            </span>
-            {!data.verification.ok && (
+        {!loading && v && (
+          <div className={"verify " + (v.ok ? "ok" : "bad")}>
+            <div className="badge">
+              {v.ok ? <IconCheck /> : <IconAlert />}
+              {v.ok ? "Факты сохранены" : "Обнаружено искажение фактов"}
+            </div>
+            {!v.ok && (
               <ul>
-                {data.verification.violations.map((v, i) => (
-                  <li key={i}>{v.type}: «{v.value}» — потерян или изменён</li>
+                {v.violations.map((x, i) => (
+                  <li key={i}>{x.type}: «{x.value}» — потерян или изменён</li>
                 ))}
               </ul>
             )}
             <div className="method">
-              Метод: {data.method}{data.cached ? " (из кэша)" : ""}
-              {data.note ? ` · ${data.note}` : ""}
+              метод: {data.method}{data.cached ? " · из кэша" : ""}{data.note ? ` · ${data.note}` : ""}
             </div>
           </div>
         )}
