@@ -46,7 +46,13 @@ export default function Home() {
     const res = await fetch("/api/rewrite", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ articleId: article.id, mood }),
+      // шлём и id (для кэша), и сам текст (чтобы не зависеть от id на serverless)
+      body: JSON.stringify({
+        articleId: article.id,
+        text: article.summary,
+        source_url: article.source_url,
+        mood,
+      }),
     });
     const data = await res.json();
     setSelected({ article, data, loading: false });
