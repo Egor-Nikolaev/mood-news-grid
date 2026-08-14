@@ -12,6 +12,14 @@ const MOODS = [
 ];
 const moodOf = (k) => MOODS.find((m) => m.key === k) || MOODS[0];
 
+// человеческое объяснение метода — чтобы работа верификатора была видна
+const METHOD_NOTE = {
+  "llm": "переписано нейросетью, факты сверены и на месте",
+  "llm+repair": "нейросеть исказила факт — система поймала и восстановила его",
+  "rule-based": "переписано по шаблону (без нейросети), факты не менялись",
+  "rule-based(fallback)": "нейросеть не справилась — безопасный откат по шаблону",
+};
+
 function factCount(f) {
   if (!f) return 0;
   return (f.numbers?.length || 0) + (f.dates?.length || 0) + (f.names?.length || 0) + (f.quotes?.length || 0);
@@ -227,7 +235,9 @@ function Modal({ article, initialMood, onClose }) {
               </ul>
             )}
             <div className="method">
-              метод: {data.method}{data.cached ? " · из кэша" : ""}{data.note ? ` · ${data.note}` : ""}
+              {METHOD_NOTE[data.method] || data.method}
+              {data.cached ? " · из кэша" : ""}
+              <span className="method-raw"> · {data.method}</span>
             </div>
           </div>
         )}
