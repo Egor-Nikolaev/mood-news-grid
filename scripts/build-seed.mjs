@@ -5,7 +5,6 @@ import { writeFileSync } from "node:fs";
 import path from "node:path";
 import { getDb } from "../lib/db.js";
 import { rewriteWithMood } from "../lib/rewrite.js";
-import { verifyFacts, extractFacts } from "../lib/facts.js";
 import { MOOD_KEYS } from "../lib/moods.js";
 
 const limit = Number(process.argv[2]) || 12;
@@ -21,12 +20,6 @@ for (const [i, a] of rows.entries()) {
   const facts = JSON.parse(a.facts_json);
   const rewrites = {};
   for (const mood of MOOD_KEYS) {
-    if (mood === "neutral") {
-      // нейтральный = оригинал дословно, без похода в LLM
-      const v = verifyFacts(extractFacts(a.summary), a.summary);
-      rewrites[mood] = { text: a.summary, method: "rule-based", verified: v.ok, violations: v.violations };
-      continue;
-    }
     // ретраим, пока не получим живой LLM (фолбэк в снапшот не пускаем — там бледные тексты)
     let r = null;
     for (let attempt = 0; attempt < 5; attempt++) {

@@ -24,7 +24,7 @@ function factCount(f) {
   return (f.numbers?.length || 0) + (f.dates?.length || 0) + (f.names?.length || 0) + (f.quotes?.length || 0);
 }
 // текст новости в выбранном настроении (из кэша), иначе оригинал
-const moodText = (a, mood) => (mood === "neutral" ? a.summary : a.moods?.[mood]?.text || a.summary);
+const moodText = (a, mood) => a.moods?.[mood]?.text || a.summary;
 
 // --- иконки (inline SVG) ---
 const IconShield = (p) => (
@@ -160,12 +160,6 @@ function Modal({ article, initialMood, onClose }) {
   useEffect(() => {
     let alive = true;
 
-    // нейтральное = оригинал, показываем мгновенно
-    if (mood === "neutral") {
-      setData({ text: article.summary, method: "rule-based", verification: { ok: true, violations: [] }, cached: true });
-      setLoading(false);
-      return;
-    }
     // если тон уже есть в кэше (пришёл с гридом) — мгновенно, без запроса
     const pre = article.moods?.[mood];
     if (pre) {
