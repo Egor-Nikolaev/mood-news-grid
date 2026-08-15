@@ -356,6 +356,37 @@ body {
 }
 .col .thinking { font-family: var(--font-sans-stack); color: var(--text-muted); font-size: 14px; }
 
+/* ---------- подсветка защищённых фактов ---------- */
+/* Один и тот же факт подсвечен слева (оригинал) и справа (переписка) — видно,
+   что имена/числа/даты/цитаты остались на месте. Цвет кодирует тип факта. */
+.fact {
+  background: transparent;
+  color: inherit;
+  border-radius: 3px;
+  padding: 0 1px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  box-shadow: inset 0 -2px 0 0 var(--fact-line, var(--text-muted));
+  background-color: var(--fact-bg, transparent);
+}
+.fact-name   { --fact-line: #4f6d8c; --fact-bg: rgba(79,109,140,0.12); }
+.fact-number { --fact-line: #3f7d5a; --fact-bg: rgba(63,125,90,0.14); }
+.fact-date   { --fact-line: #7c6ba8; --fact-bg: rgba(124,107,168,0.14); }
+.fact-quote  { --fact-line: #c98a2b; --fact-bg: rgba(201,138,43,0.14); }
+
+.hl-legend {
+  display: flex; align-items: center; gap: var(--sp-2);
+  margin: var(--sp-3) 0 0;
+  font-family: var(--font-sans-stack);
+  font-size: 12.5px; color: var(--text-muted);
+}
+.hl-swatch {
+  width: 22px; height: 10px; border-radius: 3px; flex: none;
+  background: linear-gradient(90deg,
+    rgba(79,109,140,0.5) 0 25%, rgba(63,125,90,0.5) 25% 50%,
+    rgba(124,107,168,0.5) 50% 75%, rgba(201,138,43,0.5) 75% 100%);
+}
+
 /* ---------- verify ---------- */
 .verify {
   margin-top: var(--sp-4);

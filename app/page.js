@@ -26,6 +26,68 @@ function factCount(f) {
 // текст новости в выбранном настроении (из кэша), иначе оригинал
 const moodText = (a, mood) => a.moods?.[mood]?.text || a.summary;
 
+// ё→е и нижний регистр, длина символ-в-символ сохраняется — поэтому позиции
+// в «поисковой» строке совпадают с позициями в оригинале (можно резать оригинал).
+const searchable = (s) => (s || "").toLowerCase().replace(/ё/g, "е");
+
+// Подсветка защищённых фактов в тексте: оборачивает каждое вхождение факта в <mark>.
+// Одни и те же значения подсвечиваются и в оригинале, и в переписке — визуальное
+// доказательство, что имена/числа/даты/цитаты остались на месте.
+// Возвращает массив React-нод для вставки в <p>.
+function highlightFacts(text, facts) {
+  if (!text || !facts) return [text];
+  // значения + тип; порядок по длине убыв. — длинные матчатся раньше и «выигрывают» при мерже
+  const values = [
+    ...(facts.names || []).map((v) => ({ v, type: "name" })),
+    ...(facts.quotes || []).map((v) => ({ v, type: "quote" })),
+    ...(facts.dates || []).map((v) => ({ v, type: "date" })),
+    ...(facts.numbers || []).map((v) => ({ v, type: "number" })),
+  ]
+    .filter((x) => x.v && x.v.length >= 2) // одиночные цифры не подсвечиваем — шумят
+    .sort((a, b) => b.v.length - a.v.length);
+
+  const hay = searchable(text);
+  const spans = [];
+  for (const { v, type } of values) {
+    const needle = searchable(v);
+    let from = 0;
+    while (true) {
+      const i = hay.indexOf(needle, from);
+      if (i === -1) break;
+      spans.push({ start: i, end: i + needle.length, type });
+      from = i + needle.length;
+    }
+  }
+  if (!spans.length) return [text];
+
+  // мерж перекрывающихся интервалов (тип берём у того, что начался раньше)
+  spans.sort((a, b) => a.start - b.start || b.end - a.end);
+  const merged = [];
+  for (const s of spans) {
+    const last = merged[merged.length - 1];
+    if (last && s.start < last.end) {
+      last.end = Math.max(last.end, s.end);
+    } else {
+      merged.push({ ...s });
+    }
+  }
+
+  // сборка нод
+  const out = [];
+  let cursor = 0;
+  merged.forEach((s, idx) => {
+    if (s.start > cursor) out.push(text.slice(cursor, s.start));
+    out.push(
+      <mark key={idx} className={"fact fact-" + s.type} title="Защищённый факт — сохраняется во всех настроениях">
+        {text.slice(s.start, s.end)}
+      </mark>
+    );
+    cursor = s.end;
+  });
+  if (cursor < text.length) out.push(text.slice(cursor));
+  return out;
+}
+
 // --- иконки (inline SVG) ---
 const IconShield = (p) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...p}>
@@ -221,13 +283,18 @@ function Modal({ article, initialMood, onClose }) {
         <div className="compare">
           <div className="col">
             <div className="col-label">Оригинал</div>
-            <p>{article.summary}</p>
+            <p>{highlightFacts(article.summary, article.facts)}</p>
           </div>
           <div className="col mood" style={{ "--dot": m.dot, "--mood-tint": m.tint }}>
             <div className="col-label"><span className="mood-dot" style={{ "--dot": m.dot }} /> {m.label}</div>
-            {loading ? <p className="thinking">Переписываю тон…</p> : <p>{data?.text}</p>}
+            {loading ? <p className="thinking">Переписываю тон…</p> : <p>{highlightFacts(data?.text, article.facts)}</p>}
           </div>
         </div>
+        {!loading && factCount(article.facts) > 0 && (
+          <p className="hl-legend">
+            <span className="hl-swatch" /> цветом отмечены защищённые факты — они совпадают слева и справа
+          </p>
+        )}
 
         {!loading && v && (
           <div className={"verify " + (v.ok ? "ok" : "bad")}>
