@@ -27,7 +27,13 @@ for (const [i, a] of rows.entries()) {
       rewrites[mood] = { text: a.summary, method: "rule-based", verified: v.ok, violations: v.violations };
       continue;
     }
-    const r = await rewriteWithMood(a.summary, mood);
+    // ретраим, пока не получим живой LLM (фолбэк в снапшот не пускаем — там бледные тексты)
+    let r = null;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      r = await rewriteWithMood(a.summary, mood);
+      if (r.method.startsWith("llm")) break;
+      await sleep(6000); // подождать, пока отпустит rate-limit
+    }
     rewrites[mood] = {
       text: r.text,
       method: r.method,
@@ -35,7 +41,7 @@ for (const [i, a] of rows.entries()) {
       violations: r.verification.violations,
     };
     process.stdout.write(`  [${i + 1}/${rows.length}] ${mood}: ${r.method}\n`);
-    await sleep(2500); // троттлинг, чтобы не упираться в rate-limit бесплатного тарифа
+    await sleep(2500); // троттлинг между настроениями
   }
   articles.push({
     guid: a.guid,

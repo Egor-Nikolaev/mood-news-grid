@@ -12,7 +12,6 @@ const MOODS = [
 ];
 const moodOf = (k) => MOODS.find((m) => m.key === k) || MOODS[0];
 
-// человеческое объяснение метода — чтобы работа верификатора была видна
 const METHOD_NOTE = {
   "llm": "переписано нейросетью, факты сверены и на месте",
   "llm+repair": "нейросеть исказила факт — система поймала и восстановила его",
@@ -24,12 +23,13 @@ function factCount(f) {
   if (!f) return 0;
   return (f.numbers?.length || 0) + (f.dates?.length || 0) + (f.names?.length || 0) + (f.quotes?.length || 0);
 }
+// текст новости в выбранном настроении (из кэша), иначе оригинал
+const moodText = (a, mood) => (mood === "neutral" ? a.summary : a.moods?.[mood]?.text || a.summary);
 
-// --- иконки (inline SVG, stroke 1.6) ---
+// --- иконки (inline SVG) ---
 const IconShield = (p) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...p}>
-    <path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6l7-3z" />
-    <path d="M9 12l2 2 4-4" />
+    <path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6l7-3z" /><path d="M9 12l2 2 4-4" />
   </svg>
 );
 const IconRefresh = (p) => (
@@ -52,13 +52,18 @@ const IconAlert = (p) => (
     <path d="M12 3 2 20h20L12 3z" /><path d="M12 9v5M12 17.5v.5" />
   </svg>
 );
+const IconCompare = (p) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" {...p}>
+    <path d="M9 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h4M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M12 3v18" />
+  </svg>
+);
 
 export default function Home() {
   const [articles, setArticles] = useState([]);
   const [mood, setMood] = useState("neutral");
   const [loading, setLoading] = useState(true);
   const [ingesting, setIngesting] = useState(false);
-  const [selected, setSelected] = useState(null); // {article}
+  const [selected, setSelected] = useState(null);
 
   const loadNews = useCallback(async () => {
     setLoading(true);
@@ -77,30 +82,33 @@ export default function Home() {
     setIngesting(false);
   }
 
+  const m = moodOf(mood);
+
   return (
     <div className="wrap">
       <header className="masthead">
         <p className="eyebrow">Настроение новостей</p>
         <h1>Одни и те же факты — <em>пять настроений</em></h1>
         <p className="lede">
-          Реальные новости из открытых источников можно прочитать в разном эмоциональном режиме.
-          Меняется только тон: имена, числа, даты и цитаты остаются неизменными и проверяются кодом.
+          Выберите настроение — и лента новостей переписывается в этом тоне прямо на карточках.
+          Меняется только подача: имена, числа, даты и цитаты остаются неизменными и проверяются кодом.
+          Нажмите на новость, чтобы сравнить с оригиналом.
         </p>
       </header>
 
       <div className="toolbar">
         <div className="moods" role="tablist" aria-label="Настроение">
-          {MOODS.map((m) => (
+          {MOODS.map((mm) => (
             <button
-              key={m.key}
+              key={mm.key}
               role="tab"
-              aria-selected={mood === m.key}
-              className={"mood-btn" + (mood === m.key ? " active" : "")}
-              style={{ "--dot": m.dot }}
-              onClick={() => setMood(m.key)}
+              aria-selected={mood === mm.key}
+              className={"mood-btn" + (mood === mm.key ? " active" : "")}
+              style={{ "--dot": mm.dot }}
+              onClick={() => setMood(mm.key)}
             >
               <span className="mood-dot" />
-              {m.label}
+              {mm.label}
             </button>
           ))}
         </div>
@@ -120,19 +128,19 @@ export default function Home() {
         </div>
       ) : (
         <div className="grid">
-          {articles.map((a) => {
-            const m = moodOf(mood);
-            return (
-              <button key={a.id} className="card" style={{ "--dot": m.dot }} onClick={() => setSelected(a)}>
-                <span className="kicker">{a.source}</span>
-                <h3>{a.title}</h3>
-                <p className="snippet">{a.summary}</p>
-                <div className="foot">
-                  <span className="chip"><IconShield /> {factCount(a.facts)} фактов под защитой</span>
-                </div>
-              </button>
-            );
-          })}
+          {articles.map((a) => (
+            <button key={a.id} className="card" style={{ "--dot": m.dot }} onClick={() => setSelected(a)}>
+              <span className="kicker">{a.source}</span>
+              <h3>{a.title}</h3>
+              <p className="snippet" style={mood !== "neutral" ? { color: "var(--text)" } : undefined}>
+                {moodText(a, mood)}
+              </p>
+              <div className="foot">
+                <span className="chip"><IconShield /> {factCount(a.facts)} фактов под защитой</span>
+                <span className="compare-hint"><IconCompare /> сравнить</span>
+              </div>
+            </button>
+          ))}
         </div>
       )}
 
@@ -146,29 +154,38 @@ export default function Home() {
 function Modal({ article, initialMood, onClose }) {
   const [mood, setMood] = useState(initialMood);
   const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const m = moodOf(mood);
 
   useEffect(() => {
     let alive = true;
+
+    // нейтральное = оригинал, показываем мгновенно
+    if (mood === "neutral") {
+      setData({ text: article.summary, method: "rule-based", verification: { ok: true, violations: [] }, cached: true });
+      setLoading(false);
+      return;
+    }
+    // если тон уже есть в кэше (пришёл с гридом) — мгновенно, без запроса
+    const pre = article.moods?.[mood];
+    if (pre) {
+      setData({ text: pre.text, method: pre.method, verification: { ok: pre.verified, violations: [] }, cached: true });
+      setLoading(false);
+      return;
+    }
+    // иначе генерируем вживую
     setLoading(true);
     setData(null);
     fetch("/api/rewrite", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        articleId: article.id,
-        text: article.summary,
-        source_url: article.source_url,
-        mood,
-      }),
+      body: JSON.stringify({ text: article.summary, source_url: article.source_url, mood }),
     })
       .then((r) => r.json())
       .then((d) => { if (alive) { setData(d); setLoading(false); } });
     return () => { alive = false; };
   }, [mood, article]);
 
-  // закрытие по Esc
   useEffect(() => {
     const onKey = (e) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);
@@ -191,7 +208,6 @@ function Modal({ article, initialMood, onClose }) {
           <button className="close" onClick={onClose} aria-label="Закрыть"><IconClose /></button>
         </div>
 
-        {/* переключение настроения прямо в карточке */}
         <div className="moods" role="tablist" aria-label="Настроение" style={{ marginBottom: "var(--sp-4)" }}>
           {MOODS.map((mm) => (
             <button
@@ -215,9 +231,7 @@ function Modal({ article, initialMood, onClose }) {
           </div>
           <div className="col mood" style={{ "--dot": m.dot, "--mood-tint": m.tint }}>
             <div className="col-label"><span className="mood-dot" style={{ "--dot": m.dot }} /> {m.label}</div>
-            {loading
-              ? <p className="thinking">Переписываю тон…</p>
-              : <p>{data?.text}</p>}
+            {loading ? <p className="thinking">Переписываю тон…</p> : <p>{data?.text}</p>}
           </div>
         </div>
 
@@ -227,11 +241,9 @@ function Modal({ article, initialMood, onClose }) {
               {v.ok ? <IconCheck /> : <IconAlert />}
               {v.ok ? "Факты сохранены" : "Обнаружено искажение фактов"}
             </div>
-            {!v.ok && (
+            {!v.ok && v.violations?.length > 0 && (
               <ul>
-                {v.violations.map((x, i) => (
-                  <li key={i}>{x.type}: «{x.value}» — потерян или изменён</li>
-                ))}
+                {v.violations.map((x, i) => (<li key={i}>{x.type}: «{x.value}» — потерян или изменён</li>))}
               </ul>
             )}
             <div className="method">
